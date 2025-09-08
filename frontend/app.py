@@ -266,7 +266,7 @@ class StreamlitApp:
                 st.error(f"❌ Setup failed: {e}")
 
     def render_chat_interface(self):
-        """Render the main chat interface - COMPLETELY FIXED"""
+        """Render the main chat interface - FIXED VERSION"""
         
         # Display chat messages from history
         for message in st.session_state.messages:
@@ -277,97 +277,97 @@ class StreamlitApp:
                 if "visualization" in message and message["visualization"]:
                     self.render_visualization(message["visualization"])
 
-        # Handle pending query from sidebar or regular chat input
-        prompt = None
+        # CRITICAL FIX: Always check for pending query first, process it, then render input
         if hasattr(st.session_state, 'pending_query'):
             prompt = st.session_state.pending_query
             del st.session_state.pending_query
-        else:
-            # Regular chat input
-            prompt = st.chat_input("Ask me about NYC 311 data...")
-
-        # Process the prompt if we have one
-        if prompt:
-            # CRITICAL: Check agent exists with explicit attribute checks
-            if (not hasattr(st.session_state, 'agent') or 
-                st.session_state.agent is None or
-                not hasattr(st.session_state, 'agent_initialized') or 
-                not st.session_state.agent_initialized):
-                st.error("❌ Agent not properly initialized. Please click 'Refresh Agent' in the sidebar.")
-                return
             
-            # Display user message if not already shown
-            user_msg_exists = any(
-                msg.get("role") == "user" and msg.get("content") == prompt 
-                for msg in st.session_state.messages[-2:]
-            )
-            
-            if not user_msg_exists:
-                st.session_state.messages.append({
-                    "role": "user", 
-                    "content": prompt,
-                    "timestamp": datetime.now()
-                })
-                with st.chat_message("user"):
-                    st.write(prompt)
+            # Process the pending query immediately
+            self.process_query(prompt)
+        
+        # CRITICAL FIX: Always render chat input - never conditionally hide it
+        if prompt := st.chat_input("Ask me about NYC 311 data..."):
+            self.process_query(prompt)
 
-            # Generate assistant response - SIMPLIFIED (no threads)
-            with st.chat_message("assistant"):
-                with st.spinner("🧠 Analyzing your question..."):
+    def process_query(self, prompt):
+        """Separate method to process queries - keeping your working logic intact"""
+        # Check if agent exists and is properly initialized
+        if (not hasattr(st.session_state, 'agent') or 
+            st.session_state.agent is None or
+            not hasattr(st.session_state, 'agent_initialized') or 
+            not st.session_state.agent_initialized):
+            st.error("❌ Agent not properly initialized. Please click 'Refresh Agent' in the sidebar.")
+            return
+        
+        # Display user message if not already shown
+        user_msg_exists = any(
+            msg.get("role") == "user" and msg.get("content") == prompt 
+            for msg in st.session_state.messages[-2:]
+        )
+        
+        if not user_msg_exists:
+            st.session_state.messages.append({
+                "role": "user", 
+                "content": prompt,
+                "timestamp": datetime.now()
+            })
+            with st.chat_message("user"):
+                st.write(prompt)
+
+        # Generate assistant response
+        with st.chat_message("assistant"):
+            with st.spinner("🧠 Analyzing your question..."):
+                try:
+                    # Your existing async handling code (unchanged)
+                    import asyncio
+                    
+                    async def run_query():
+                        return await st.session_state.agent.process_query(prompt)
+                    
                     try:
-                        # SIMPLIFIED: Direct async call without threading
-                        # Create new event loop to avoid conflicts
-                        import asyncio
+                        response = asyncio.run(run_query())
+                    except RuntimeError as e:
+                        if "cannot be called from a running event loop" in str(e):
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                response = loop.run_until_complete(run_query())
+                            finally:
+                                loop.close()
+                        else:
+                            raise e
+                    
+                    # Display response
+                    st.write(response["response"])
+                    
+                    # Show visualization if available
+                    if response.get("visualization_data") and len(response["visualization_data"]) > 0:
+                        self.render_visualization(response["visualization_data"])
+                    
+                    # Add to chat history
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": response["response"],
+                        "timestamp": datetime.now(),
+                        "sql_query": response.get("sql_query", ""),
+                        "raw_data": response.get("raw_results", [])
+                    }
+                    
+                    if response.get("visualization_data"):
+                        assistant_message["visualization"] = response["visualization_data"]
                         
-                        # Create and run async function
-                        async def run_query():
-                            return await st.session_state.agent.process_query(prompt)
-                        
-                        # Use asyncio.run in a try/except to handle event loop conflicts
-                        try:
-                            response = asyncio.run(run_query())
-                        except RuntimeError as e:
-                            if "cannot be called from a running event loop" in str(e):
-                                # Fallback: create new loop in thread-safe way
-                                loop = asyncio.new_event_loop()
-                                asyncio.set_event_loop(loop)
-                                try:
-                                    response = loop.run_until_complete(run_query())
-                                finally:
-                                    loop.close()
-                            else:
-                                raise e
-                        
-                        # Display response
-                        st.write(response["response"])
-                        
-                        # Show visualization if available
-                        if response.get("visualization_data") and len(response["visualization_data"]) > 0:
-                            self.render_visualization(response["visualization_data"])
-                        
-                        # Add to chat history
-                        assistant_message = {
-                            "role": "assistant",
-                            "content": response["response"],
-                            "timestamp": datetime.now(),
-                            "sql_query": response.get("sql_query", ""),
-                            "raw_data": response.get("raw_results", [])
-                        }
-                        
-                        if response.get("visualization_data"):
-                            assistant_message["visualization"] = response["visualization_data"]
-                            
-                        st.session_state.messages.append(assistant_message)
-                        
-                    except Exception as e:
-                        error_msg = f"❌ Sorry, I encountered an error: {str(e)}"
-                        st.write(error_msg)
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "content": error_msg,
-                            "timestamp": datetime.now()
-                        })
-                        logger.error(f"Query processing error: {e}")
+                    st.session_state.messages.append(assistant_message)
+                    
+                except Exception as e:
+                    error_msg = f"❌ Sorry, I encountered an error: {str(e)}"
+                    st.write(error_msg)
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": error_msg,
+                        "timestamp": datetime.now()
+                    })
+                    logger.error(f"Query processing error: {e}")
+
 
     def run(self):
         """Main application runner"""

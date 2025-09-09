@@ -196,7 +196,7 @@ class StreamlitApp:
             return False
 
     def render_visualization(self, viz_data):
-        """Render visualization from agent response"""
+        """Render visualization from agent response - FIXED with unique keys"""
         try:
             if not viz_data or "data" not in viz_data:
                 return
@@ -213,19 +213,27 @@ class StreamlitApp:
             if not x_col or not y_col or x_col not in df.columns or y_col not in df.columns:
                 return
                 
+            # CRITICAL FIX: Generate unique key for each chart
+            import time
+            import hashlib
+            data_hash = hashlib.md5(str(viz_data.get('data', [])[:3]).encode()).hexdigest()[:8]
+            chart_key = f"chart_{int(time.time() * 1000)}_{data_hash}"
+            
             # Create appropriate chart
             if chart_type == "bar":
-                fig = px.bar(df, x=x_col, y=y_col, title="Query Results Visualization")
+                fig = px.bar(df, x=x_col, y=y_col, title="Query Results")
                 fig.update_xaxes(tickangle=45)
             elif chart_type == "pie":
-                fig = px.pie(df, names=x_col, values=y_col, title="Query Results Visualization")
+                fig = px.pie(df, names=x_col, values=y_col, title="Query Results")
             else:
-                fig = px.bar(df, x=x_col, y=y_col, title="Query Results Visualization")
+                fig = px.bar(df, x=x_col, y=y_col, title="Query Results")
                 
-            st.plotly_chart(fig, use_container_width=True)
+            # FIXED: Use unique key parameter to avoid duplicate ID error
+            st.plotly_chart(fig, use_container_width=True, key=chart_key)
             
         except Exception as e:
             st.error(f"Visualization error: {e}")
+
 
     def render_setup_page(self):
         """Render data setup page if data not ready"""

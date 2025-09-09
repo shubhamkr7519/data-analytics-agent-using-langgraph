@@ -83,24 +83,30 @@ class NYC311AnalyticsAgent:
         """Parse user intent and extract key parameters"""
         
         system_prompt = """
-        You are an expert data analyst for NYC 311 service requests. Parse the user's question and extract the following information.
+        You are an expert data analyst for NYC 311 service requests. Parse the user's question and determine:
 
-        IMPORTANT: You MUST respond with valid JSON only. No explanations, no markdown, just pure JSON.
-
-        Extract:
-        1. Query Type: (top_n, time_analysis, geographic_analysis, comparison, data_quality, trend_analysis)
-        2. Entity: What they want to analyze (complaint_type, agency, borough, zip_code, etc.)
-        3. Metric: What they want to measure (count, percentage, average_time, etc.)
-        4. Filters: Any conditions (date_range, specific_values, etc.)
-        5. Limit: Number of results needed (if applicable)
+        1. Is this query related to NYC 311 data? (true/false)
+        2. Is this a greeting? (true/false) 
+        3. Query complexity level: "simple", "detailed", or "unrelated"
+        4. If related to NYC 311 data, extract:
+        - Query Type: (top_n, time_analysis, geographic_analysis, comparison, data_quality, trend_analysis)
+        - Entity: What they want to analyze (complaint_type, agency, borough, zip_code, etc.)
+        - Metric: What they want to measure (count, percentage, average_time, etc.)
+        - Filters: Any conditions (date_range, specific_values, etc.)
+        - Limit: Number of results needed (if applicable)
 
         Available database columns:
         - complaint_type, agency, borough, zip_clean, status, created_date, closed_date
         - days_to_close, is_closed, has_coordinates, year_created, month_created
         - response_category, resolution_speed, is_priority
 
-        Example response format:
-        {"query_type": "top_n", "entity": "complaint_type", "metric": "count", "filters": null, "limit": 10}
+        IMPORTANT: Respond with valid JSON only.
+
+        Examples:
+        - "Who is the prime minister?" -> {"related_to_data": false, "is_greeting": false, "complexity": "unrelated"}
+        - "Hello" -> {"related_to_data": false, "is_greeting": true, "complexity": "unrelated"}
+        - "Top complaint types?" -> {"related_to_data": true, "is_greeting": false, "complexity": "simple", "query_type": "top_n", "entity": "complaint_type", "metric": "count", "limit": 10}
+        - "Give me detailed insights on complaint patterns" -> {"related_to_data": true, "is_greeting": false, "complexity": "detailed", "query_type": "trend_analysis"}
 
         Respond with JSON only:
         """
@@ -114,13 +120,13 @@ class NYC311AnalyticsAgent:
             response = await self.llm.ainvoke(messages)
             response_text = response.content.strip()
             
-            # Clean up response - remove any markdown or extra text
+            # Clean up response
             response_text = response_text.replace('``````', '').strip()
             
             # Handle empty responses
             if not response_text:
                 logger.warning("Empty response from LLM for query parsing")
-                state["parsed_intent"] = {"query_type": "general", "entity": "complaint_type", "metric": "count", "filters": None, "limit": 10}
+                state["parsed_intent"] = {"related_to_data": false, "is_greeting": false, "complexity": "unrelated"}
                 return state
                 
             # Try to parse JSON
@@ -130,14 +136,84 @@ class NYC311AnalyticsAgent:
                 logger.info(f"Parsed intent: {parsed_intent}")
             except json.JSONDecodeError as json_error:
                 logger.error(f"JSON decode error: {json_error}. Response was: {response_text}")
-                # Fallback to a safe default
-                state["parsed_intent"] = {"query_type": "general", "entity": "complaint_type", "metric": "count", "filters": None, "limit": 10}
+                # Fallback to safe default
+                state["parsed_intent"] = {"related_to_data": false, "is_greeting": false, "complexity": "unrelated"}
                 
         except Exception as e:
             logger.error(f"Error parsing query: {e}")
             state["error_message"] = f"Could not understand the question: {e}"
             
         return state
+
+    async def format_final_response(self, state: NYC311AnalyticsState) -> NYC311AnalyticsState:
+        """Format the final user-facing response - FIXED with smart formatting"""
+        
+        if state.get("error_message"):
+            state["final_response"] = f"I encountered an issue: {state['error_message']}\n\nPlease try rephrasing your question or ask something like:\n- 'What are the top 10 complaint types?'\n- 'Which borough has the most complaints?'\n- 'What percentage of complaints are closed within 3 days?'"
+            return state
+
+        # Handle unrelated queries
+        if not state.get("parsed_intent", {}).get("related_to_data", True):
+            if state.get("parsed_intent", {}).get("is_greeting", False):
+                state["final_response"] = "Hello! I'm your NYC 311 Service Requests analytics agent. Please ask me questions about NYC service request data, such as:\n\n• What are the top complaint types?\n• Which borough has the most complaints?\n• What's the average resolution time?\n• How many complaints are geocoded?"
+                return state
+            else:
+                state["final_response"] = "I'm sorry, but your question appears to be unrelated to NYC 311 service request data. I can only help you analyze NYC service requests data. Please ask questions about complaint types, boroughs, agencies, resolution times, or other aspects of the NYC 311 dataset."
+                return state
+
+        # Determine response complexity
+        complexity = state.get("parsed_intent", {}).get("complexity", "simple")
+        
+        if complexity == "detailed" or "insight" in state.get("user_query", "").lower() or "detailed" in state.get("user_query", "").lower():
+            # Full detailed response with all sections
+            response_parts = []
+            
+            if state.get("analysis_summary"):
+                response_parts.append(state["analysis_summary"])
+                
+            if state.get("query_results"):
+                response_parts.append(f"\n**Detailed Results:**")
+                for i, result in enumerate(state["query_results"][:10]):
+                    if isinstance(result, dict):
+                        formatted_result = ", ".join([f"{k}: {v}" for k, v in result.items()])
+                        response_parts.append(f"{i+1}. {formatted_result}")
+                        
+            response_parts.append(f"\n*Query used: `{state.get('sql_query', '')}`*")
+            state["final_response"] = "\n".join(response_parts)
+            
+        else:
+            # Simple, concise response
+            if state.get("query_results"):
+                # Extract key numbers for simple response
+                results = state.get("query_results", [])
+                if len(results) > 0:
+                    if isinstance(results[0], dict):
+                        # Format the top results concisely
+                        simple_response = f"Here are the results:\n\n"
+                        for i, result in enumerate(results[:5]):  # Show top 5 only
+                            if isinstance(result, dict):
+                                # Format nicely based on result type
+                                items = list(result.items())
+                                if len(items) >= 2:
+                                    simple_response += f"{i+1}. {items[0][1]}: {items[1][1]:,}\n"
+                                else:
+                                    formatted_result = ", ".join([f"{k}: {v}" for k, v in result.items()])
+                                    simple_response += f"{i+1}. {formatted_result}\n"
+                                    
+                        if len(results) > 5:
+                            simple_response += f"\n...and {len(results)-5} more results."
+                            
+                        simple_response += f"\n\n*Query used: `{state.get('sql_query', '')}`*"
+                        state["final_response"] = simple_response
+                    else:
+                        state["final_response"] = f"Found {len(results)} results.\n\n*Query used: `{state.get('sql_query', '')}`*"
+                else:
+                    state["final_response"] = f"No results found.\n\n*Query used: `{state.get('sql_query', '')}`*"
+            else:
+                state["final_response"] = f"No data available.\n\n*Query used: `{state.get('sql_query', '')}`*"
+                
+        return state
+
 
     async def generate_sql_query(self, state: NYC311AnalyticsState) -> NYC311AnalyticsState:
         """Generate SQL query based on parsed intent"""

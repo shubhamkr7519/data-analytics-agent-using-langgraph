@@ -45,17 +45,11 @@ The NYC 311 Analytics Agent is an intelligent chatbot application built with Str
 
 ## Installation
 
-### Prerequisites
-
-- Python 3.8 or higher
-- DeepSeek API key (or compatible OpenAI-format API)
-- NYC 311 dataset CSV file
-
 ### Setup Instructions
 
 1. **Clone Repository**
 ```bash
-git clone <repository-url>
+git clone https://github.com/shubhamkr7519/data-analytics-agent-using-langgraph.git
 cd nyc-311-analytics-agent
 ```
 
@@ -71,7 +65,7 @@ pip install -r requirements.txt
 ```
 
 4. **Configure Environment**
-Create a <<.env>> file in the root directory:
+Create a ``.env`` file in the root directory:
 ```
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 DEEPSEEK_BASE_URL=https://api.deepseek.com
@@ -80,22 +74,11 @@ DATA_RAW=data/raw
 CHUNK_SIZE=10000
 ```
 
-5. **Prepare Data Directory Structure**
-```
-nyc-311-analytics-agent/
-├── data/
-│   ├── raw/
-│   └── processed/
-├── logs/
-├── src/
-└── frontend/
-```
+5. **Download Dataset**
+- Download NYC 311 dataset from Kaggle: https://www.kaggle.com/datasets/pablomonleon/311-service-requests-nyc
+- Place CSV file as: ``data/raw/311_Service_Requests_from_2010_to_Present.csv``
 
-6. **Download Dataset**
-- Download NYC 311 dataset from Kaggle
-- Place CSV file as: <<data/raw/311_Service_Requests_from_2010_to_Present.csv>>
-
-7. **Launch Application**
+6. **Launch Application**
 ```bash
 streamlit run frontend/app.py
 ```
@@ -146,25 +129,17 @@ streamlit run frontend/app.py
 
 ## Configuration
 
-### Environment Variables
-
-- <<DEEPSEEK_API_KEY>>: Your DeepSeek API key
-- <<DEEPSEEK_BASE_URL>>: API endpoint (default: https://api.deepseek.com)
-- <<DATABASE_PATH>>: SQLite database location
-- <<DATA_RAW>>: Raw data directory path
-- <<CHUNK_SIZE>>: Data processing chunk size (default: 10000)
-
 ### Database Schema
 
 The application creates an optimized analytical database with:
 
-**Main Table** (<<nyc_311>>):
-- <<unique_key>>: Primary identifier
-- <<created_date>>, <<closed_date>>: Temporal fields
-- <<complaint_type>>, <<agency>>, <<borough>>: Categorical fields
-- <<days_to_close>>, <<is_closed>>: Calculated metrics
-- <<has_coordinates>>: Data quality indicator
-- <<zip_clean>>: Standardized ZIP codes
+**Main Table** (``nyc_311``):
+- ``unique_key``: Primary identifier
+- ``created_date``, ``closed_date``: Temporal fields
+- ``complaint_type``, ``agency``, ``borough``: Categorical fields
+- ``days_to_close``, ``is_closed``: Calculated metrics
+- ``has_coordinates``: Data quality indicator
+- ``zip_clean``: Standardized ZIP codes
 
 **Indexes** for performance:
 - Complaint type, borough, agency
@@ -173,7 +148,7 @@ The application creates an optimized analytical database with:
 
 ### Logging
 
-- Application logs stored in <<logs/>> directory
+- Application logs stored in ``logs/`` directory
 - Log levels: INFO, WARNING, ERROR
 - Automatic log rotation and cleanup
 - Query processing and performance tracking
@@ -206,28 +181,28 @@ requirements.txt         # Python dependencies
 ### Key Classes
 
 **NYC311AnalyticsAgent**: Main LangGraph workflow
-- <<parse_user_query()>>: Intent extraction
-- <<generate_sql_query()>>: SQL generation
-- <<execute_query()>>: Safe query execution
-- <<analyze_results()>>: Result interpretation
-- <<format_final_response()>>: Response formatting
+- ``parse_user_query()``: Intent extraction
+- ``generate_sql_query()``: SQL generation
+- ``execute_query()``: Safe query execution
+- ``analyze_results()``: Result interpretation
+- ``format_final_response()``: Response formatting
 
 **NYC311DataProcessor**: Data management
-- <<setup_database()>>: Schema creation
-- <<process_and_load_data()>>: CSV processing
-- <<clean_data_chunk()>>: Data cleaning
-- <<get_analytical_stats()>>: Summary statistics
+- ``setup_database()``: Schema creation
+- ``process_and_load_data()``: CSV processing
+- ``clean_data_chunk()``: Data cleaning
+- ``get_analytical_stats()``: Summary statistics
 
 **StreamlitApp**: Frontend interface
-- <<render_chat_interface()>>: Chat UI
-- <<render_sidebar()>>: Control panel
-- <<render_visualization()>>: Chart display
-- <<initialize_agent()>>: Agent setup
+- ``render_chat_interface()``: Chat UI
+- ``render_sidebar()``: Control panel
+- ``render_visualization()``: Chart display
+- ``initialize_agent()``: Agent setup
 
 ### Adding New Features
 
-1. **New Query Types**: Extend <<parse_user_query()>> intent recognition
-2. **Additional Visualizations**: Modify <<prepare_visualization()>> method
+1. **New Query Types**: Extend ``parse_user_query()`` intent recognition
+2. **Additional Visualizations**: Modify ``prepare_visualization()`` method
 3. **Custom Analyses**: Add new workflow nodes to LangGraph
 4. **UI Enhancements**: Update Streamlit components in frontend
 
@@ -257,8 +232,8 @@ requirements.txt         # Python dependencies
 
 ### Log Analysis
 
-Check <<logs/>> directory for detailed error information:
-- <<app.log>>: General application logs
+Check ``logs/`` directory for detailed error information:
+- ``app.log``: General application logs
 - Error traces for debugging
 - Performance metrics and query timing
 

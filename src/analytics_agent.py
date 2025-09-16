@@ -10,6 +10,7 @@ from pathlib import Path
 from src.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL
 from src.query_executor import QueryExecutor
 from src.utils import logger
+import re
 
 # Import fix for async issues
 if hasattr(asyncio, 'WindowsProactorEventLoopPolicy'):
@@ -100,15 +101,9 @@ class NYC311AnalyticsAgent:
         - days_to_close, is_closed, has_coordinates, year_created, month_created
         - response_category, resolution_speed, is_priority
 
-        IMPORTANT: Respond with valid JSON only.
+        IMPORTANT: Respond with valid JSON only. No markdown, no explanations.
 
-        Examples:
-        - "Who is the prime minister?" -> {"related_to_data": false, "is_greeting": false, "complexity": "unrelated"}
-        - "Hello" -> {"related_to_data": false, "is_greeting": true, "complexity": "unrelated"}
-        - "Top complaint types?" -> {"related_to_data": true, "is_greeting": false, "complexity": "simple", "query_type": "top_n", "entity": "complaint_type", "metric": "count", "limit": 10}
-        - "Give me detailed insights on complaint patterns" -> {"related_to_data": true, "is_greeting": false, "complexity": "detailed", "query_type": "trend_analysis"}
-
-        Respond with JSON only:
+        Example response: {"related_to_data": true, "is_greeting": false, "complexity": "simple", "query_type": "top_n", "entity": "complaint_type", "metric": "count", "limit": 5}
         """
         
         messages = [
@@ -119,25 +114,43 @@ class NYC311AnalyticsAgent:
         try:
             response = await self.llm.ainvoke(messages)
             response_text = response.content.strip()
+            response_text = re.sub(r'```\w*\n?', '', response_text)  # Remove ``````python, etc.
+            response_text = re.sub(r'```\n?', '', response_text)     # Remove remaining ```
+            response_text = response_text.strip()
             
-            # Clean up response
-            response_text = response_text.replace('``````', '').strip()
+            # Remove any remaining markdown or extra text
+            if response_text.startswith('{') and response_text.endswith('}'):
+                # Already clean JSON
+                pass
+            else:
+                # Try to extract JSON from text
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    response_text = json_match.group(0)
             
             # Handle empty responses
-            if not response_text:
+            if not response_text or not response_text.strip():
                 logger.warning("Empty response from LLM for query parsing")
-                state["parsed_intent"] = {"related_to_data": false, "is_greeting": false, "complexity": "unrelated"}
+                state["parsed_intent"] = {"related_to_data": False, "is_greeting": False, "complexity": "unrelated"}
                 return state
                 
-            # Try to parse JSON
+            # CRITICAL FIX: Use json.loads (not eval) to handle true/false/null properly
             try:
                 parsed_intent = json.loads(response_text)
                 state["parsed_intent"] = parsed_intent
                 logger.info(f"Parsed intent: {parsed_intent}")
             except json.JSONDecodeError as json_error:
                 logger.error(f"JSON decode error: {json_error}. Response was: {response_text}")
-                # Fallback to safe default
-                state["parsed_intent"] = {"related_to_data": false, "is_greeting": false, "complexity": "unrelated"}
+                # Try one more cleanup attempt
+                try:
+                    # Last resort: manual cleanup of common JSON issues
+                    cleaned_text = response_text.replace("'", '"')  # Single to double quotes
+                    parsed_intent = json.loads(cleaned_text)
+                    state["parsed_intent"] = parsed_intent
+                    logger.info(f"Parsed intent after cleanup: {parsed_intent}")
+                except:
+                    # Fallback to safe default
+                    state["parsed_intent"] = {"related_to_data": False, "is_greeting": False, "complexity": "unrelated"}
                 
         except Exception as e:
             logger.error(f"Error parsing query: {e}")
@@ -222,7 +235,7 @@ class NYC311AnalyticsAgent:
             return state
             
         system_prompt = """
-        You are an expert SQL generator for NYC 311 analytics database. 
+        You are an expert SQL generator for NYC 311 analytics database using SQLite.
         
         Database Schema:
         Table: nyc_311
@@ -230,12 +243,18 @@ class NYC311AnalyticsAgent:
                     zip_clean, status, days_to_close, is_closed, has_coordinates, 
                     year_created, month_created, response_category, resolution_speed
         
+        IMPORTANT SQLite Date Filtering Rules:
+        - For year filtering: Use strftime('%Y', created_date) = '2012' (not year_created = 2012)
+        - For month filtering: Use strftime('%m', created_date) = '01'
+        - For date range: Use created_date BETWEEN '2012-01-01' AND '2012-12-31'
+        - Always use string comparisons with strftime: '2012' not 2012
+        
         Generate SAFE, READ-ONLY SQL queries. Use proper aggregations, filtering, and ordering.
         Always include LIMIT clauses for large result sets.
         
         Common patterns:
         - Top N: SELECT column, COUNT(*) as count FROM nyc_311 GROUP BY column ORDER BY count DESC LIMIT N
-        - Time analysis: Use days_to_close, created_date columns
+        - Year analysis: Use strftime('%Y', created_date) = 'YYYY'
         - Geographic: Use borough, zip_clean columns
         - Data quality: Use has_coordinates, is_closed columns
         
@@ -254,6 +273,13 @@ class NYC311AnalyticsAgent:
             # Clean up the SQL
             sql_query = sql_query.replace('``````', '').strip()
             
+            # CRITICAL FIX: Replace year_created with proper date filtering
+            import re
+            if 'year_created' in sql_query:
+                # Replace year_created = YYYY with strftime('%Y', created_date) = 'YYYY'
+                sql_query = re.sub(r'year_created\s*=\s*(\d{4})', 
+                                r"strftime('%Y', created_date) = '\1'", sql_query)
+            
             state["sql_query"] = sql_query
             logger.info(f"Generated SQL: {sql_query}")
             
@@ -262,6 +288,7 @@ class NYC311AnalyticsAgent:
             state["error_message"] = f"Could not generate query: {e}"
             
         return state
+
 
     async def execute_query(self, state: NYC311AnalyticsState) -> NYC311AnalyticsState:
         """Execute the SQL query safely"""

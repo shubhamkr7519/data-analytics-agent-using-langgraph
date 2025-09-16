@@ -79,18 +79,7 @@ CHUNK_SIZE=10000
 streamlit run frontend/app.py
 ```
 
-6. **Download Dataset and Launch (Optional)**
-If the app hasn't started, then download the dataset and launch the app again
-- Download NYC 311 dataset from Kaggle: https://www.kaggle.com/datasets/pablomonleon/311-service-requests-nyc
-- Place CSV file as: ``data/raw/311_Service_Requests_from_2010_to_Present.csv``
-
 ## Usage Guide
-
-### Initial Setup
-
-1. **Data Loading**: On first launch, click "Load Data from CSV" to process the dataset (this step won't be required but if you application hasn't started, then only you will be required to do this)
-2. **Agent Initialization**: The analytics agent will initialize automatically
-3. **Ready to Use**: Start asking questions about NYC 311 data
 
 ### Query Examples
 
@@ -280,4 +269,4 @@ SELECT COUNT(*) FROM nyc_311;
 
 ---
 
-**Built with ❤️ for NYC data analysis and public service insights**
+**Built with ❤️ for NYC data analysis and insights**

@@ -50,7 +50,7 @@ The NYC 311 Analytics Agent is an intelligent chatbot application built with Str
 1. **Clone Repository**
 ```bash
 git clone https://github.com/shubhamkr7519/data-analytics-agent-using-langgraph.git
-cd nyc-311-analytics-agent
+cd data-analytics-agent-using-langgraph
 ```
 
 2. **Create Virtual Environment**

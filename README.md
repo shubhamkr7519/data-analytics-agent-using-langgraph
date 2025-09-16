@@ -74,20 +74,21 @@ DATA_RAW=data/raw
 CHUNK_SIZE=10000
 ```
 
-5. **Download Dataset**
-- Download NYC 311 dataset from Kaggle: https://www.kaggle.com/datasets/pablomonleon/311-service-requests-nyc
-- Place CSV file as: ``data/raw/311_Service_Requests_from_2010_to_Present.csv``
-
-6. **Launch Application**
+5. **Launch Application**
 ```bash
 streamlit run frontend/app.py
 ```
+
+6. **Download Dataset and Launch (Optional)**
+If the app hasn't started, then download the dataset and launch the app again
+- Download NYC 311 dataset from Kaggle: https://www.kaggle.com/datasets/pablomonleon/311-service-requests-nyc
+- Place CSV file as: ``data/raw/311_Service_Requests_from_2010_to_Present.csv``
 
 ## Usage Guide
 
 ### Initial Setup
 
-1. **Data Loading**: On first launch, click "Load Data from CSV" to process the dataset
+1. **Data Loading**: On first launch, click "Load Data from CSV" to process the dataset (this step won't be required but if you application hasn't started, then only you will be required to do this)
 2. **Agent Initialization**: The analytics agent will initialize automatically
 3. **Ready to Use**: Start asking questions about NYC 311 data
 
@@ -261,29 +262,10 @@ SELECT COUNT(*) FROM nyc_311;
 5. **Analysis**: Provides insights and context
 6. **Response**: Formats results based on complexity
 
-### Response Types
-
-**Simple Response**:
-- Direct answer with key numbers
-- Minimal formatting
-- SQL query included
-
-**Detailed Response**:
-- Key findings and numbers
-- Notable patterns or trends
-- Actionable insights
-- Context and implications
-
-**Error Response**:
-- Clear error description
-- Suggested alternatives
-- Help guidance
-
 ## Security
 
 ### SQL Injection Prevention
 - Parameterized queries only
-- Whitelist-based validation
 - Read-only database access
 - Query pattern restrictions
 
@@ -295,21 +277,6 @@ SELECT COUNT(*) FROM nyc_311;
 ### Data Privacy
 - Local data processing
 - No external data transmission
-- Configurable retention policies
-
-## Performance
-
-### Optimization Features
-- Chunked data processing
-- Optimized database indexes
-- Query result caching
-- Efficient memory management
-
-### Scalability
-- Configurable processing parameters
-- Modular architecture
-- Database optimization
-- Resource monitoring
 
 ---
 

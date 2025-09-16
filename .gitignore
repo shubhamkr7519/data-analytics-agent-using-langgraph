@@ -3,6 +3,6 @@ __pycache__/
 .venv/
 .env
 data/raw/*.csv
-data/processed/*.db
+# data/processed/*.db
 *.log
 .DS_Store
